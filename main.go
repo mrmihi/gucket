@@ -1,0 +1,59 @@
+package gucket
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+	"sync"
+)
+
+// ValueStore stores a single string safely for concurrent access.
+type ValueStore struct {
+	mu    sync.RWMutex
+	value string
+}
+
+func (vs *ValueStore) Get() string {
+	vs.mu.RLock()
+	defer vs.mu.RUnlock()
+	return vs.value
+}
+
+func (vs *ValueStore) Set(v string) {
+	vs.mu.Lock()
+	defer vs.mu.Unlock()
+	vs.value = v
+}
+
+func main() {
+	store := &ValueStore{value: ""}
+
+	// One handler does both GET and POST.
+	http.HandleFunc("/value", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			// respond with JSON: {"value": "..."}
+			_ = json.NewEncoder(w).Encode(map[string]string{"value": store.Get()})
+
+		case http.MethodPost:
+			var body struct {
+				Value string `json:"value"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "invalid JSON", http.StatusBadRequest)
+				return
+			}
+			store.Set(body.Value)
+			w.WriteHeader(http.StatusNoContent) // 204 No Content
+
+		default:
+			w.Header().Set("Allow", "GET, POST")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	log.Println("Listening on :8080 …")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatal(err)
+	}
+}
