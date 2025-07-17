@@ -1,4 +1,4 @@
-package gucket
+package main
 
 import (
 	"encoding/json"
@@ -32,8 +32,13 @@ func main() {
 	http.HandleFunc("/value", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			// respond with JSON: {"value": "..."}
-			_ = json.NewEncoder(w).Encode(map[string]string{"value": store.Get()})
+			// Set Content-Type header for explicit JSON response
+			w.Header().Set("Content-Type", "application/json")
+			// Respond with JSON: {"value": "..."}
+			if err := json.NewEncoder(w).Encode(map[string]string{"value": store.Get()}); err != nil {
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				log.Printf("error encoding JSON: %v", err)
+			}
 
 		case http.MethodPost:
 			var body struct {

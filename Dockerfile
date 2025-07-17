@@ -1,38 +1,21 @@
-#####################
-#  Build stage
-#####################
-FROM golang:1.24-alpine AS builder
+# Use the official Go image as the base image
+FROM golang:1.24 AS builder
 
-WORKDIR /src
+# Set the working directory inside the container
+WORKDIR /goapp
 
+# Copy the Go module files
 COPY go.mod go.sum ./
+
+# Download the dependencies
 RUN go mod download
 
+# Copy the rest of the application code
 COPY . .
 
-# Static Linux binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+# Build the Go application
+RUN go build -o main .
 
-#####################
-#  Runtime stage
-#####################
-FROM alpine:3.19
-
-# Trust HTTPS in case your app calls external APIs
-RUN apk --no-cache add ca-certificates
-
-# ----- copy binary as root and make sure it is executable -----
-COPY --from=builder /src/server /usr/local/bin/server
-RUN chmod +x /usr/local/bin/server
-
-# ----- create non‑root user AFTER the copy -----
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
- && chown appuser:appgroup /usr/local/bin/server
-
-USER appuser
-
-# Cloud Run uses $PORT (8080 by default)
-ENV PORT=8080
 EXPOSE 8080
-
-ENTRYPOINT ["/usr/local/bin/server"]
+# Set the entry point command to run the built binary
+CMD ["./main"]
