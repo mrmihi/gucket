@@ -7,7 +7,6 @@ import (
 	"sync"
 )
 
-// ValueStore stores a single string safely for concurrent access.
 type ValueStore struct {
 	mu    sync.RWMutex
 	value string
@@ -28,13 +27,17 @@ func (vs *ValueStore) Set(v string) {
 func main() {
 	store := &ValueStore{value: ""}
 
-	// One handler does both GET and POST.
-	http.HandleFunc("/value", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			// Set Content-Type header for explicit JSON response
+			setValue := r.URL.Query().Get("set")
+			if setValue != "" {
+				store.Set(setValue)
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
 			w.Header().Set("Content-Type", "application/json")
-			// Respond with JSON: {"value": "..."}
 			if err := json.NewEncoder(w).Encode(map[string]string{"value": store.Get()}); err != nil {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				log.Printf("error encoding JSON: %v", err)
@@ -49,7 +52,7 @@ func main() {
 				return
 			}
 			store.Set(body.Value)
-			w.WriteHeader(http.StatusNoContent) // 204 No Content
+			w.WriteHeader(http.StatusNoContent)
 
 		default:
 			w.Header().Set("Allow", "GET, POST")
